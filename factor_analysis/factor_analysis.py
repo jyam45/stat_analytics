@@ -8,11 +8,12 @@ from factor_analyzer import FactorAnalyzer
 class ExploratoryFactorAnalysis:
      
     def __init__(self,
-                 likert=(1,7),tol_loading=0.5,tol_alpha=0.7,rotation='promax',
+                 likert=(1,7),tol_loading=0.5,tol_alpha=0.7,tol_scree=0.5,rotation='promax',
                  ddof=False,method='minres',bounds=(0.005,1),impute='median'):
         self.likert_          = likert         # Likert's scale for reversing (default:(1,7))
         self.tol_loading_     = tol_loading    # Cutoff value for factor loadings (default:0.5)
         self.tol_alpha_       = tol_alpha      # Cutoff value for Cronbach's alpha (default:0.7)
+	self.tol_scree_       = tol_scree      # Cutoff value in Scree's plot to detect max number of factors (default:0.5)
         self.rotation_        = rotation       # [None|'varimax'|'promax'|'oblimin'|'oblimax'|'quartimin'|'quatimax'|'eqamax']
         self.ddof_            = ddof           # (default:False) 不偏分散
         self.method_          = method         # ['minres'|'ml'|'principal']
@@ -175,7 +176,7 @@ class ExploratoryFactorAnalysis:
         ev = pd.DataFrame(np.linalg.eigvals(stddat.corr()))
         max_factors = 0
         for e in ev[0]:
-            if e > 1.0 :
+            if e > self.tol_scree_ :
                 max_factors += 1
         print('predicted max_factors = '+str(max_factors))
      
