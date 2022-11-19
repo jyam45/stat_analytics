@@ -13,7 +13,7 @@ class ExploratoryFactorAnalysis:
         self.likert_          = likert         # Likert's scale for reversing (default:(1,7))
         self.tol_loading_     = tol_loading    # Cutoff value for factor loadings (default:0.5)
         self.tol_alpha_       = tol_alpha      # Cutoff value for Cronbach's alpha (default:0.7)
-	self.tol_scree_       = tol_scree      # Cutoff value in Scree's plot to detect max number of factors (default:0.5)
+        self.tol_scree_       = tol_scree      # Cutoff value in Scree's plot to detect max number of factors (default:0.5)
         self.rotation_        = rotation       # [None|'varimax'|'promax'|'oblimin'|'oblimax'|'quartimin'|'quatimax'|'eqamax']
         self.ddof_            = ddof           # (default:False) 不偏分散
         self.method_          = method         # ['minres'|'ml'|'principal']
@@ -86,13 +86,12 @@ class ExploratoryFactorAnalysis:
     #標準化
     #https://note.nkmk.me/python-list-ndarray-dataframe-normalize-standardize/
     @staticmethod
-    def standarize(data,ddof=False):
-        stddat = data - data.mean() / data.std(ddof=ddof)
+    def standardize(data,ddof=False):
+        stddat = ( data - data.mean() ) / data.std(ddof=ddof)
         stddat.index = data.index
         stddat.columns = data.columns
- 
         return stddat
-     
+
     #逆転（内部関数）
     def __reverse(self,value):
         #if self.rtype is "likert" :
@@ -131,7 +130,7 @@ class ExploratoryFactorAnalysis:
         items = self.__select_items_by_loading(loading,data)
         rho   = self.split_half_rho(items)
         return rho
-     
+    
     #ソート済因子負荷量
     @staticmethod
     def sort_loadings(loadings,tol=0.4):
@@ -170,7 +169,7 @@ class ExploratoryFactorAnalysis:
     def explore( self, data ):
      
         #標準化
-        stddat = self.standarize(data,ddof=self.ddof_)
+        stddat = self.standardize(data,ddof=self.ddof_)
      
         #最大因子数推定
         ev = pd.DataFrame(np.linalg.eigvals(stddat.corr()))
@@ -248,7 +247,7 @@ class ExploratoryFactorAnalysis:
             raise ValueError('NFACTORS in analyze() must be more than zero!')
              
         #標準化
-        stddat = self.standarize(data,ddof=self.ddof_)
+        stddat = self.standardize(data,ddof=self.ddof_)
  
         #因子分析（MINRES法を使用）
         fa = FactorAnalyzer(nfactors,rotation=self.rotation_,method=self.method_,
@@ -341,6 +340,72 @@ class ExploratoryFactorAnalysis:
  
          
         return self.factors_
+
+    # CFAのための構造方程式を計算する
+    def cfa_model(self,formating="lavaan",model_type="order1",gfactor="GF"):
+        model = ""
+        if formating == "lavaan":
+           left = "~"
+           right= "=~"
+           both = "~~"
+        elif formating == "sem":
+           left = "<-"
+           right= "->"
+           both = "<>"
+        else:
+           print(f"cfa_model: irregal option formating={formating}. ['lavaan','sem']")
+        factors = self.loadings_.columns
+        items   = self.loadings_.index
+        #潜在変数の定義
+        for factor in factors:
+            for item in items:
+                loading = self.sorted_loadings_.loc[item,factor]
+                if abs(loading) > self.tol_loading_:
+                    model += f"{factor} {right} {item}\n"
+            #model += f"{factor} {both} 1*{factor}\n"
+        #CFAモデル
+        if model_type == "order1":
+            # 通常のCFAモデル
+            nfactors = len(factors)
+            for j in range(1,nfactors):
+                jfactor = factors[j]
+                for i in range(0,j):
+                    ifactor = factors[i]
+                    model += f"{ifactor} {both} {jfactor}\n"
+        elif model_type == "order2":
+            # ２次因子モデル
+            nfactors = len(factors)
+            for j in range(0,nfactors):
+                jfactor = factors[j]
+                model += f"{gfactor} {right} {jfactor}\n"
+            #model += f"DEFINE(latent) {gfactor}\n"
+        elif model_type == "bifactor":
+            # bifactorモデル
+            for item in items:
+                model += f"{gfactor} {right} {item}\n"
+            # 潜在因子の独立性
+            for factor in factors:
+                model += f"{gfactor} {both} 0*{factor}\n"
+            nfactors = len(factors)
+            for j in range(1,nfactors):
+                jfactor = factors[j]
+                for i in range(0,j):
+                    ifactor = factors[i]
+                    model += f"{ifactor} {both} 0*{jfactor}\n"
+            #model += f"DEFINE(latent) {gfactor}\n"
+            #model += f"{gfactor} {both} 1*{gfactor}\n"
+        elif model_type == "multilayer":
+            # 階層因子モデル
+            nfactors = len(factors)
+            for j in range(0,nfactors):
+                jfactor = factors[j]
+                model += f"{gfactor} {right} {jfactor}\n"
+            for item in items:
+                model += f"{gfactor} {right} {item}\n"
+            #model += f"DEFINE(latent) {gfactor}\n"
+        else:
+            print("cfa_model: invalide option model_type={model_type}. ['order1','order2','bifactor','multilayer']")
+        return model
  
     def __str__(self):
         x  = "\n"

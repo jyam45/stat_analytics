@@ -2,17 +2,18 @@ import itertools as itr
 import pandas as pd
 import scipy as sp
 import numpy as np
+import scipy.stats as ss
 
 class CorrelationAnalysis:
 
 	# 相関関数のコマンドテーブル
-	__CORRFUNC = { 'pearson':sp.stats.peasonr,
-	               'kendall':sp.stats.kendalltau,
-	               'spearman':sp.stats.spearmanr }
+	__CORRFUNC = { 'pearson':ss.pearsonr,
+	               'kendall':ss.kendalltau,
+	               'spearman':ss.spearmanr }
 
 	def __init__(self,
 	             method='pearson',
-	             alpha =0.05
+	             alpha =0.05,
 	             partial=False ):
 		self.method_  = method  # {'pearson'|'kendall'|'spearman'}
 		self.alpha_   = alpha   # significant level (default:0.05)
@@ -27,7 +28,7 @@ class CorrelationAnalysis:
 		std_df = self.standardize(df)
 		if self.partial_ is True :
 			r,p = self.pcorr(std_df,method=self.method_)
-		else	
+		else:
 			r,p = self.corr(std_df,method=self.method_)
 		self.r_ = r
 		self.p_ = p
@@ -35,24 +36,24 @@ class CorrelationAnalysis:
 		return self.sigs_
 
 	# 相関行列を返す
-	def r_coefs(self):
+	def r_values(self):
 		if self.r_ is not None :
 			return self.r_
-		else
+		else:
 			print("c_coefs() call error : r is None")
 
 	# p値行列を返す
 	def p_values(self):
 		if self.p_ is not None :
 			return self.p_
-		else
+		else:
 			print("p_values() call error : p is None")
 
 	# 有意な値だけをリストにする
 	def significants(self):
 		if self.sigs_ is not None :
 			return self.sigs_
-		else
+		else:
 			print("significants() call error : p is None")
 
 	#標準化
@@ -207,8 +208,8 @@ class CorrelationAnalysis:
 			x += "p-Values:\n" + str(self.p_) + "\n\n"
 		if self.sigs_ is not None:
 			x += "List of Significant Values:\n"
-		 	for item in self.sigs_:
-			   	x += "r={1:.2f}, p={2:.4f} : {3:<16s} <-> {4:<16s}\n".format(item['r'],item['p'],item['first'],item['second'])
+			for item in self.sigs_ :
+				x += "r={0:.2f}, p={1:.4f} : {2:>16s} <-> {3:<16s}\n".format(item['r'],item['p'],item['first'],item['second'])
 		return x
 
 
