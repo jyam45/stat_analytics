@@ -119,12 +119,37 @@ class ExploratoryFactorAnalysis:
             alpha = self.cronbach_alpha(items,ddof=self.ddof_)
         #print(item_dict.keys()," alpha="+str(alpha))
         return alpha
+
+    def __loadings_to_alpha(self,loadings,data):
+        nfactors = len(loadings.columns)
+        factnames= loadings.columns
+        alphas = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["alpha"],columns=factnames)
+        for i in range(nfactors):
+            items = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            #クロンバックαの計算
+            alpha = 0e0
+            if len(items.columns) > 1 : # １質問の場合は、共通因子はなかったと見なす
+                alpha = self.cronbach_alpha(items,ddof=self.ddof_)
+            alphas.iloc[0,i] = alpha
+            #print(item_dict.keys()," alpha="+str(alpha))
+        return alphas
  
     #I-T相関を計算する
     def __loading_to_itcorr(self,loading,data):
         items = self.__select_items_by_loading(loading,data)
         itcorr= self.item_total_corr(items)
         return itcorr
+
+    def __loadings_to_itcorr(self,loadings,data):
+        nfactors = len(loadings.columns)
+        factnames= loadings.columns
+        itcorrs  = pd.DataFrame()
+        for i in range(nfactors):
+            items = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            itcorr= self.item_total_corr(items)
+            itcorr.columns = [factnames[i]]
+            itcorrs = itcorrs.append(itcorr)
+        return itcorrs
      
     #折半法を計算する
     def __loading_to_rho(self,loading,data):
@@ -132,8 +157,18 @@ class ExploratoryFactorAnalysis:
         rho   = self.split_half_rho(items)
         return rho
 
+    def __loadings_to_rho(self,loadings,data):
+        nfactors = len(loadings.columns)
+        factnames= loadings.columns
+        rhos     = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["rho"],columns=factnames)
+        for i in range(nfactors):
+            items = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            rho   = self.split_half_rho(items)
+            rhos.iloc[0,i] = rho
+        return rhos
+
     #因子間相関を計算する 
-    def __loading_to_corr(self,loadings,data):
+    def __loadings_to_corr(self,loadings,data):
         m  = len(data.index)
         nf = len(loadings.columns)
         fnames = loadings.columns
@@ -302,23 +337,26 @@ class ExploratoryFactorAnalysis:
         self.sorted_loadings_ = self.sort_loadings(self.loadings_,tol=self.tol_loading_)
  
         #内的一貫性
-        self.alphas_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["alpha"],columns=factnames)
-        for i in range(nfactors):
-            alpha = self.__loading_to_alpha(self.loadings_.iloc[:,i],stddat)#stddat?
-            self.alphas_.iloc[0,i] = alpha
+        #self.alphas_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["alpha"],columns=factnames)
+        #for i in range(nfactors):
+        #    alpha = self.__loading_to_alpha(self.loadings_.iloc[:,i],stddat)#stddat?
+        #    self.alphas_.iloc[0,i] = alpha
+        self.alphas_ = self.__loadings_to_alpha(self.loadings_,stddat)
          
         #I-T相関
-        self.itcorr_ = pd.DataFrame()
-        for i in range(nfactors):
-            itcorr = self.__loading_to_itcorr(self.loadings_.iloc[:,i],stddat)#stddat?
-            itcorr.columns = [factnames[i]]
-            self.itcorr_ = self.itcorr_.append(itcorr)
+        #self.itcorr_ = pd.DataFrame()
+        #for i in range(nfactors):
+        #    itcorr = self.__loading_to_itcorr(self.loadings_.iloc[:,i],stddat)#stddat?
+        #    itcorr.columns = [factnames[i]]
+        #    self.itcorr_ = self.itcorr_.append(itcorr)
+        self.itcorr_ = self.__loadings_to_itcorr(self.loadings_,stddat)
          
         #split-half
-        self.rhos_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["rho"],columns=factnames)
-        for i in range(nfactors):
-            rho = self.__loading_to_rho(self.loadings_.iloc[:,i],stddat)#stddat?
-            self.rhos_.iloc[0,i] = rho
+        #self.rhos_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["rho"],columns=factnames)
+        #for i in range(nfactors):
+        #    rho = self.__loading_to_rho(self.loadings_.iloc[:,i],stddat)#stddat?
+        #    self.rhos_.iloc[0,i] = rho
+        self.rhos_ = self.__loadings_to_rho(self.loadings_,stddat)
  
         #因子得点
         self.factors_ = pd.DataFrame(fa.transform(stddat),index=data.index,columns=factnames)  # 因子得点に変換
@@ -371,7 +409,7 @@ class ExploratoryFactorAnalysis:
             #print(self.factor_corr_)
         else:
             print("Computed factor's correlations instead because 'fa' does not have a member 'psi_'")
-            self.factor_corr_ = self.__loading_to_corr(self.loadings_,stddat)
+            self.factor_corr_ = self.__loadings_to_corr(self.loadings_,stddat)
          
         return self.factors_
 
