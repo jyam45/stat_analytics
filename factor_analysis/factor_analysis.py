@@ -143,6 +143,15 @@ class ExploratoryFactorAnalysis:
             x[fnames[i]] = picks.mean(axis=1)
         return x.corr()
 
+    #複数因子に含まれる項目を見つける
+    def __find_drop_items(self,loadings):
+        #print(loadings)
+        a = (abs(loadings) >= self.tol_loading_).sum(axis=1) # 複数因子に含まれる項目確認 
+        df = pd.DataFrame(a,index=loadings.index,columns=["count"])
+        #print(df)
+        x = df[ df["count"] > 1 ]
+        return x.index
+
     #ソート済因子負荷量
     @staticmethod
     def sort_loadings(loadings,tol=0.4):
@@ -204,7 +213,7 @@ class ExploratoryFactorAnalysis:
      
             #因子負荷量(因子×質問）
             #loadings = pd.DataFrame(fa.components_.T)
-            loadings = pd.DataFrame(fa.loadings_)
+            loadings = pd.DataFrame(fa.loadings_,index=stddat.columns)
              
             #信頼性＆妥当性（内的一貫性）のチェック
             ifactor = nfactors - 1
@@ -216,8 +225,15 @@ class ExploratoryFactorAnalysis:
  
             #探索終了条件：全因子の妥当性が確認された場合、探索を打ち切る
             if ifactor < 0 : 
-                print('found optimum nfactors = '+str(nfactors))
-                break
+                drop_items = self.__find_drop_items(loadings) #重複項目の探索
+                #print(stddat)
+                if len(drop_items) > 0 :
+                    print("Dropped Items : ",drop_items)
+                    stddat = stddat.drop(drop_items,axis=1)
+                    nfactors = max_factors+1 # 再探索する
+                else:
+                    print('found optimum nfactors = '+str(nfactors))
+                    break
          
             #探索継続条件：因子が確認できなかった場合、因子数を減らして次へ。
             nfactors -= 1
@@ -257,15 +273,7 @@ class ExploratoryFactorAnalysis:
         #エラー処理
         if nfactors < 1 :
             raise ValueError('NFACTORS in analyze() must be more than zero!')
-             
-        #標準化
-        stddat = self.standardize(data,ddof=self.ddof_)
- 
-        #因子分析（MINRES法を使用）
-        fa = FactorAnalyzer(nfactors,rotation=self.rotation_,method=self.method_,
-                            bounds=self.bounds_,impute=self.impute_)
-        fa.fit(stddat)
- 
+
         #仮因子名生成 "Fn"
         factnames = [] # 因子名配列
         i=0
@@ -274,6 +282,21 @@ class ExploratoryFactorAnalysis:
             factnames.append(factname)
             i+=1
              
+        #標準化
+        stddat = self.standardize(data,ddof=self.ddof_)
+ 
+        #因子分析（MINRES法を使用）
+        fa = FactorAnalyzer(nfactors,rotation=self.rotation_,method=self.method_,
+                            bounds=self.bounds_,impute=self.impute_)
+        fa.fit(stddat)
+
+        #重複項目の削除 & 再分析
+        drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames))
+        if len(drop_items) > 0 :
+            print("Dropped Items : ",drop_items)
+            stddat = stddat.drop(drop_items,axis=1)
+            fa.fit(stddat)
+            
         #因子負荷量（質問×因子）
         self.loadings_ = pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames)
         self.sorted_loadings_ = self.sort_loadings(self.loadings_,tol=self.tol_loading_)
