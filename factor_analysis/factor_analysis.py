@@ -96,9 +96,9 @@ class ExploratoryFactorAnalysis:
     def __reverse(self,value):
         #if self.rtype is "likert" :
         return (self.likert_[0]+self.likert_[1]) - value
-     
+
     #因子負荷量から項目データを選択する（内部関数）
-    def __select_items_by_loading(self,loading,data):
+    def __select_items_by_loading(self,loading,data): # dataは標準化ずみなこと
         # 格納用辞書：pandas.DataFrameに変換するときに、列データとするため辞書に
         item_dict = {} 
         # 因子負荷量の絶対値が閾値より大きい質問を取り出す
@@ -106,7 +106,8 @@ class ExploratoryFactorAnalysis:
             if loading[i] >= self.tol_loading_ :
                 item_dict[data.columns[i]] = data.values[:,i]
             elif loading[i] <= -self.tol_loading_ :
-                item_dict[data.columns[i]] = self.__reverse(data.values[:,i])
+                #item_dict[data.columns[i]] = self.__reverse(data.values[:,i])
+                item_dict[data.columns[i]] = -data.values[:,i] # data is standardized
         return pd.DataFrame(item_dict)
          
     #因子負荷量からクロンバックαを計算する（内部関数）
@@ -130,7 +131,18 @@ class ExploratoryFactorAnalysis:
         items = self.__select_items_by_loading(loading,data)
         rho   = self.split_half_rho(items)
         return rho
-    
+
+    #因子間相関を計算する 
+    def __loading_to_corr(self,loadings,data):
+        m  = len(data.index)
+        nf = len(loadings.columns)
+        fnames = loadings.columns
+        x = pd.DataFrame(np.zeros(m*nf).reshape(m,nf),index=data.index,columns=fnames)
+        for i in range(nf):
+            picks = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            x[fnames[i]] = picks.mean(axis=1)
+        return x.corr()
+
     #ソート済因子負荷量
     @staticmethod
     def sort_loadings(loadings,tol=0.4):
@@ -197,7 +209,7 @@ class ExploratoryFactorAnalysis:
             #信頼性＆妥当性（内的一貫性）のチェック
             ifactor = nfactors - 1
             while ifactor >= 0:
-                alpha  = self.__loading_to_alpha(loadings.iloc[:,ifactor],data)
+                alpha  = self.__loading_to_alpha(loadings.iloc[:,ifactor],stddat)
                 if alpha < self.tol_alpha_ : # 閾値未満なら一貫性がないため、因子数が妥当ではない。
                     break
                 ifactor -= 1
@@ -269,25 +281,25 @@ class ExploratoryFactorAnalysis:
         #内的一貫性
         self.alphas_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["alpha"],columns=factnames)
         for i in range(nfactors):
-            alpha = self.__loading_to_alpha(self.loadings_.iloc[:,i],data)
+            alpha = self.__loading_to_alpha(self.loadings_.iloc[:,i],stddat)#stddat?
             self.alphas_.iloc[0,i] = alpha
          
         #I-T相関
         self.itcorr_ = pd.DataFrame()
         for i in range(nfactors):
-            itcorr = self.__loading_to_itcorr(self.loadings_.iloc[:,i],data)
+            itcorr = self.__loading_to_itcorr(self.loadings_.iloc[:,i],stddat)#stddat?
             itcorr.columns = [factnames[i]]
             self.itcorr_ = self.itcorr_.append(itcorr)
          
         #split-half
         self.rhos_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["rho"],columns=factnames)
         for i in range(nfactors):
-            rho = self.__loading_to_rho(self.loadings_.iloc[:,i],data)
+            rho = self.__loading_to_rho(self.loadings_.iloc[:,i],stddat)#stddat?
             self.rhos_.iloc[0,i] = rho
  
         #因子得点
         self.factors_ = pd.DataFrame(fa.transform(stddat),index=data.index,columns=factnames)  # 因子得点に変換
- 
+
         #共通性（共通分散の値のこと、複数の観測変数に影響する度合い）
         x = fa.get_communalities()
         if x is not None :
@@ -329,15 +341,14 @@ class ExploratoryFactorAnalysis:
             #print(self.structure_)
         else:
             print("'fa' does not have a menber 'structure_'")
- 
          
         #因子相関行列（斜交回転の場合だけ計算される、promaxで計算されないのはバグ？）
         if hasattr(fa,'psi_'):
             self.factor_corr_ = pd.DataFrame(fa.psi_)
             #print(self.factor_corr_)
         else:
-            print("'fa' does not have a menber 'psi_'")
- 
+            print("Computed factor's correlations instead because 'fa' does not have a member 'psi_'")
+            self.factor_corr_ = self.__loading_to_corr(self.loadings_,stddat)
          
         return self.factors_
 

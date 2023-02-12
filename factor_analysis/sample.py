@@ -10,7 +10,7 @@ fs  = efa.analyze(d,nf) # 因子分析
 print(efa) # 分析結果表示
 
 print("CFA model:")
-cfa = efa.cfa_model(form="lavaan")
+cfa = efa.cfa_model(formating="lavaan")
 print(cfa)
 
 #cfi = StructEquationModel(cfa)
