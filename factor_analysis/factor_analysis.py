@@ -9,13 +9,14 @@ class ExploratoryFactorAnalysis:
      
     def __init__(self,
                  likert=(1,7),tol_loading=0.5,tol_alpha=0.7,tol_scree=0.5,rotation='promax',
-                 ddof=False,method='minres',bounds=(0.005,1),impute='median'):
+                 ddof=False,dropping=False,method='minres',bounds=(0.005,1),impute='median'):
         self.likert_          = likert         # Likert's scale for reversing (default:(1,7))
         self.tol_loading_     = tol_loading    # Cutoff value for factor loadings (default:0.5)
         self.tol_alpha_       = tol_alpha      # Cutoff value for Cronbach's alpha (default:0.7)
         self.tol_scree_       = tol_scree      # Cutoff value in Scree's plot to detect max number of factors (default:0.5)
         self.rotation_        = rotation       # [None|'varimax'|'promax'|'oblimin'|'oblimax'|'quartimin'|'quatimax'|'eqamax']
         self.ddof_            = ddof           # (default:False) 不偏分散
+        self.dropping_        = dropping       # [True|False](defualt:False) switch for dropping items.
         self.method_          = method         # ['minres'|'ml'|'principal']
         self.bounds_          = bounds         # L-BFGS-M bounds
         self.impute_          = impute         # ['median'|'drop'|'mean']
@@ -260,12 +261,16 @@ class ExploratoryFactorAnalysis:
  
             #探索終了条件：全因子の妥当性が確認された場合、探索を打ち切る
             if ifactor < 0 : 
-                drop_items = self.__find_drop_items(loadings) #重複項目の探索
-                #print(stddat)
-                if len(drop_items) > 0 :
-                    print("Dropped Items : ",drop_items)
-                    stddat = stddat.drop(drop_items,axis=1)
-                    nfactors = max_factors+1 # 再探索する
+                if self.dropping_ :
+                    drop_items = self.__find_drop_items(loadings) #重複項目の探索
+                    #print(stddat)
+                    if len(drop_items) > 0 :
+                        print("Dropped Items : ",drop_items)
+                        stddat = stddat.drop(drop_items,axis=1)
+                        nfactors = max_factors+1 # 再探索する
+                    else:
+                        print('found optimum nfactors = '+str(nfactors))
+                        break
                 else:
                     print('found optimum nfactors = '+str(nfactors))
                     break
@@ -326,11 +331,12 @@ class ExploratoryFactorAnalysis:
         fa.fit(stddat)
 
         #重複項目の削除 & 再分析
-        drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames))
-        if len(drop_items) > 0 :
-            print("Dropped Items : ",drop_items)
-            stddat = stddat.drop(drop_items,axis=1)
-            fa.fit(stddat)
+        if self.dropping_ :
+            drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames))
+            if len(drop_items) > 0 :
+                print("Dropped Items : ",drop_items)
+                stddat = stddat.drop(drop_items,axis=1)
+                fa.fit(stddat)
             
         #因子負荷量（質問×因子）
         self.loadings_ = pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames)
