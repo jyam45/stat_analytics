@@ -9,8 +9,8 @@ import graphviz
 ###
 ### Scaing Functions for pandas.DataFrame
 ###
-###   1. Use standardize() for regular distribution data such as Likert N-item questionnaire. 
-###   2. Use normalize() for the data bounded between upper limit and lower one.
+###   1. Use standardize() for normal-distribution data such as Likert N-item questionnaire. 
+###   2. Use normalize() for the data bounded between upper- and lower-limit.
 ###   3. Use scale_by() for dynamics data such as time-plot data.
 ###
 ####################################################################
