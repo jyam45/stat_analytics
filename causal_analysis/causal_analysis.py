@@ -234,6 +234,17 @@ class CausalAnalysis:
 	######################
 
 	@staticmethod
+	def print_full(df,title="No title"):
+		x = ""
+		if df is not None:
+			x  = f"{title}:\n"
+			pd.set_option('display.max_columns',len(df.columns))
+			pd.set_option('display.max_rows',len(df.index))
+			x += str(df)
+			x += "\n\n"
+		return x
+
+	@staticmethod
 	def read_model(file,encoding='UTF-8'):
 		file = open(file,'r',encoding=encoding)
 		text = file.read()
@@ -315,7 +326,7 @@ class CausalAnalysis:
 	# 因果分析を行う
 	def analyze(self,data):
 		model  = self.discover(data)
-		print(model)
+		#print(model)
 		#print(data.columns.to_list())
 		result = self.evaluate(data,model)
 		return result
@@ -359,7 +370,11 @@ class CausalAnalysis:
 	def evaluate(self,data,model=None):
 		if model is None: model = self.model_
 		if model is None: raise ValueError("No model")  
-		if str(model) == "": raise ValueError("Empty model")
+		if str(model) == "": 
+			if self.lingam_ is not None:
+				print("Adjacency Matrix:")
+				print(self.lingam_.adjacency_matrix_)
+			raise ValueError("Empty model")
 		self.sem_ = semopy.Model(model)
 		res = self.sem_.fit(data)
 		return res
