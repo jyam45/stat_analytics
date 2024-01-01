@@ -190,7 +190,7 @@ def der_likelihood(a,b,rho,n,pi,dpi,loc=0,scale=1):
 		for j in range(1,r):
 			cdf00 = norm.cdf( (b[j  ]-rho*a[k])/sigma )
 			cdf10 = norm.cdf( (b[j-1]-rho*a[k])/sigma )
-			dfda[k] += ( npi[k-1,j-1] - npi[k,j-1] ) * phi_a[k] *  ( cdf00 - cdf10 )
+			dfda[k] -= ( npi[k-1,j-1] - npi[k,j-1] ) * phi_a[k] *  ( cdf00 - cdf10 )
 	# dfdb
 	dfdb = np.zeros((r))
 	phi_b = norm.pdf(b)
@@ -198,7 +198,7 @@ def der_likelihood(a,b,rho,n,pi,dpi,loc=0,scale=1):
 		for i in range(1,s):
 			cdf00 = norm.cdf( (a[i  ]-rho*b[m])/sigma )
 			cdf10 = norm.cdf( (a[i-1]-rho*b[m])/sigma )
-			dfdb[m] += ( npi[i-1,m-1] - npi[i-1,m] ) * phi_b[m] *  ( cdf00 - cdf10 )
+			dfdb[m] -= ( npi[i-1,m-1] - npi[i-1,m] ) * phi_b[m] *  ( cdf00 - cdf10 )
 	return dfdr,dfda,dfdb
 
 # 単一の相関値を計算する
