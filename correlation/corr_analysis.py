@@ -114,6 +114,7 @@ class CorrelationAnalysis:
 		cor = df.corr(method=method)
 		n   = df.shape[0] # number of data
 		l   = df.shape[1] # number of labels
+		dof = n - l # degree of freedom
 		# 偏相関係数の計算
 		cor_inv = sp.linalg.pinv(cor) # 従属変数が存在する場合に備えて、擬逆行列pinvを使用
 		denom = 1 / np.sqrt(np.diag(cor_inv))
@@ -121,10 +122,10 @@ class CorrelationAnalysis:
 		pcor  = (-cor_inv) * denom * numer
 		np.fill_diagonal(pcor,0) #ゼロ割防止のため対角成分を０にする
 		# 統計検定量(t)の計算
-		t = np.abs(pcor) * np.sqrt(n-3) / np.sqrt(1-pcor*pcor)#３変数間の相関なのでn-3
+		t = np.abs(pcor) * np.sqrt(dof) / np.sqrt(1-pcor*pcor)#３変数間の相関なのでn-3
 		np.fill_diagonal(pcor,1) #対角成分を自己相関値=1にする
 		# p値の計算
-		p = 2*sp.stats.t.cdf(-t,n-3) #両側、Array型
+		p = 2*sp.stats.t.cdf(-t,dof) #両側、Array型
 		# pandas.DataFrameへ変換
 		pcor_df = pd.DataFrame(data=pcor,index=cor.index,columns=cor.columns)
 		p_df=pd.DataFrame(data=p,index=cor.index,columns=cor.columns)
