@@ -25,6 +25,7 @@ class ExploratoryFactorAnalysis:
         self.scree_eigvals_   = None           # Eigen values for scree plot
         self.factors_         = None           # factor values
         self.alphas_          = None           # Cronbach's alpha
+        self.omegas_          = None           # McDonald's omega
         self.loadings_        = None           # The factor loading matrix
         self.corr_            = None           # The original correlation matrix
         self.rotation_matrix_ = None           # The rotation matrix
@@ -48,16 +49,37 @@ class ExploratoryFactorAnalysis:
             x = data.sum(axis=1) # 行方向への和
              
             #分散
-            sigma_x = x.var(ddof=ddof)    
-            sigma_i = 0e0
+            sigma2_x = x.var(ddof=ddof)    
+            sigma2_i = 0e0
             for i in range(M):
-                sigma_i += data.iloc[:,i].var(ddof=ddof)
+                sigma2_i += data.iloc[:,i].var(ddof=ddof)
          
-            cronbach_alpha = M / (M-1) * ( 1 - sigma_i/sigma_x )
+            cronbach_alpha = M / (M-1) * ( 1 - sigma2_i/sigma2_x )
         else:
             cronbach_alpha = float(M)
              
         return cronbach_alpha
+
+    #オメガ係数（McDonald, 1999）
+    @staticmethod
+    def mcdonald_omega(data, loads, ddof=False):
+        #ddof=True:不偏分散、False:標本分散
+        M = data.shape[1]
+         
+        if M > 1 :
+            x = data.sum(axis=1) # 行方向への和
+             
+            #分散
+            sigma2_x = x.var(ddof=ddof) 
+            lambda_i = 0e0 
+            for i in range(M):
+                lambda_i += abs(loads[i])
+         
+            mcdonald_omega = (lambda_i*lambda_i)/sigma2_x
+        else:
+            mcdonald_omega = float(M)
+             
+        return mcdonald_omega
      
     # I-T相関
     # https://bellcurve.jp/statistics/glossary/7396.html
@@ -110,6 +132,18 @@ class ExploratoryFactorAnalysis:
                 #item_dict[data.columns[i]] = self.__reverse(data.values[:,i])
                 item_dict[data.columns[i]] = -data.values[:,i] # data is standardized
         return pd.DataFrame(item_dict)
+
+    #因子負荷量から有効な因子負荷量を選択する（内部関数）
+    def __select_loads_by_loading(self,loading,data): # dataは標準化ずみなこと
+        # 格納用辞書：pandas.DataFrameに変換するときに、列データとするため辞書に
+        load_list = []
+        # 因子負荷量の絶対値が閾値より大きい質問を取り出す
+        for i in range(len(loading)):
+            if loading[i] >= self.tol_loading_ :
+                load_list.append(loading[i])
+            elif loading[i] <= -self.tol_loading_ :
+                load_list.append(-loading[i])
+        return load_list
          
     #因子負荷量からクロンバックαを計算する（内部関数）
     def __loading_to_alpha(self,loading,data):
@@ -134,6 +168,32 @@ class ExploratoryFactorAnalysis:
             alphas.iloc[0,i] = alpha
             #print(item_dict.keys()," alpha="+str(alpha))
         return alphas
+
+    #因子負荷量からマクドナルドωを計算する（内部関数）
+    def __loading_to_omega(self,loading,data):
+        items = self.__select_items_by_loading(loading,data)
+        loads = self.__select_loads_by_loading(loading,data)
+        #マクドナルドωの計算
+        omega = 0e0
+        if len(items.columns) > 1 : # １質問の場合は、共通因子はなかったと見なす
+            omega = self.mcdonald_omega(items,loads,ddof=self.ddof_)
+        #print(item_dict.keys()," alpha="+str(alpha))
+        return omega
+
+    def __loadings_to_omega(self,loadings,data):
+        nfactors = len(loadings.columns)
+        factnames= loadings.columns
+        omegas = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["omega"],columns=factnames)
+        for i in range(nfactors):
+            items = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            loads = self.__select_loads_by_loading(loadings.iloc[:,i],data)
+            #クロンバックαの計算
+            omega = 0e0
+            if len(items.columns) > 1 : # １質問の場合は、共通因子はなかったと見なす
+                omega = self.mcdonald_omega(items,loads,ddof=self.ddof_)
+            omegas.iloc[0,i] = omega
+            #print(item_dict.keys()," omega="+str(omega))
+        return omegas
  
     #I-T相関を計算する
     def __loading_to_itcorr(self,loading,data):
@@ -145,12 +205,15 @@ class ExploratoryFactorAnalysis:
         nfactors = len(loadings.columns)
         factnames= loadings.columns
         itcorrs  = pd.DataFrame()
+        #itcorrs  = []
         for i in range(nfactors):
             items = self.__select_items_by_loading(loadings.iloc[:,i],data)
             itcorr= self.item_total_corr(items)
             itcorr.columns = [factnames[i]]
-            itcorrs = itcorrs.append(itcorr)
+            #itcorrs = itcorrs.append(itcorr) # pandas2で削除された
+            itcorrs = pd.concat([itcorrs,pd.DataFrame(itcorr)],ignore_index=True) # pandas2で削除された
         return itcorrs
+        #return pd.DataFrame(itcorrs)
      
     #折半法を計算する
     def __loading_to_rho(self,loading,data):
@@ -206,6 +269,7 @@ class ExploratoryFactorAnalysis:
  
         #print(tld)
         results=pd.DataFrame()
+        #results=[]
         ilabel=n
         for label in names:
             x = tmp_loadings.sort_values(label,ascending=False)
@@ -216,11 +280,13 @@ class ExploratoryFactorAnalysis:
             while j < len(x.index) and x.iloc[j,ilabel] >= tol:
                 j += 1
             #print(x.iloc[0:j,0:n])
-            results = results.append(x.iloc[0:j,0:n])
+            #results = results.append(x.iloc[0:j,0:n]) # pandas2でappend()削除->concat()推奨に
+            results = pd.concat([results,pd.DataFrame(x.iloc[0:j,0:n])],ignore_index=True) 
             tmp_loadings = x.iloc[j:,:]
             ilabel += 1
         #print(results)
         return results
+        #return pd.DataFrame(results)
      
     #因子数推定
     def explore( self, data ):
@@ -348,6 +414,7 @@ class ExploratoryFactorAnalysis:
         #    alpha = self.__loading_to_alpha(self.loadings_.iloc[:,i],stddat)#stddat?
         #    self.alphas_.iloc[0,i] = alpha
         self.alphas_ = self.__loadings_to_alpha(self.loadings_,stddat)
+        self.omegas_ = self.__loadings_to_omega(self.loadings_,stddat)
          
         #I-T相関
         #self.itcorr_ = pd.DataFrame()
@@ -500,6 +567,8 @@ class ExploratoryFactorAnalysis:
             x += "Loadings:\n" + str(self.sorted_loadings_) + "\n\n"
         if self.alphas_ is not None:
             x += "Cronbach's alpha:\n" + str(self.alphas_) + "\n\n"
+        if self.omegas_ is not None:
+            x += "McDonald's omega:\n" + str(self.omegas_) + "\n\n"
         if self.rhos_ is not None:
             x += "Split-half rho:\n" + str(self.rhos_) + "\n\n"
         if self.itcorr_ is not None:
