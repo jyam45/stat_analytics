@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy.stats as st
 import matplotlib.pyplot as plt
 import japanize_matplotlib
  
@@ -9,11 +10,12 @@ class ExploratoryFactorAnalysis:
      
     def __init__(self,
                  likert=(1,7),tol_loading=0.5,tol_alpha=0.7,tol_scree=0.5,rotation='promax',
-                 ddof=False,dropping=False,method='minres',bounds=(0.005,1),impute='median'):
+                 ddof=False,dropping=False,method='minres',bounds=(0.005,1),impute='median',tol_95ci=0.95):
         self.likert_          = likert         # Likert's scale for reversing (default:(1,7))
         self.tol_loading_     = tol_loading    # Cutoff value for factor loadings (default:0.5)
         self.tol_alpha_       = tol_alpha      # Cutoff value for Cronbach's alpha (default:0.7)
         self.tol_scree_       = tol_scree      # Cutoff value in Scree's plot to detect max number of factors (default:0.5)
+        self.tol_95ci_        = tol_95ci       # Cutoff percentage for confidence intervals (default:0.95)
         self.rotation_        = rotation       # [None|'varimax'|'promax'|'oblimin'|'oblimax'|'quartimin'|'quatimax'|'eqamax']
         self.ddof_            = ddof           # (default:False) 不偏分散
         self.dropping_        = dropping       # [True|False](defualt:False) switch for dropping items.
@@ -36,8 +38,9 @@ class ExploratoryFactorAnalysis:
         self.factor_variance_ = None
         self.uniquenesses_    = None
         self.sorted_loadings_ = None
-        self.itcorr_          = None
-        self.rhos_            = None
+        self.itcorr_          = None           # I-T correlations
+        self.rhos_            = None           # Split-half rho
+        self.cis_             = None           # 95% confidence interval
          
     #クーロンバックα係数
     @staticmethod
@@ -80,7 +83,20 @@ class ExploratoryFactorAnalysis:
             mcdonald_omega = float(M)
              
         return mcdonald_omega
-     
+    
+    #信頼区間 
+    @staticmethod
+    def confidence_interval(data, percent=0.95):
+        #ddof=True:不偏分散、False:標本分散。基本的に不偏分散を用いる。
+        n = data.shape[0] # サンプル数
+        q = 1 - ( 1 - percent ) /2
+        t = st.t.ppf(q=q,df=n-1) # t分布
+        x = data.mean(axis=1) # 行方向への平均
+        x_mean = x.mean()
+        x_std  = x.std(ddof=True) # 標準偏差
+        margin = t * ( x_std / np.sqrt(n) )
+        return ( x_mean - margin, x_mean + margin )
+
     # I-T相関
     # https://bellcurve.jp/statistics/glossary/7396.html
     @staticmethod
@@ -194,7 +210,28 @@ class ExploratoryFactorAnalysis:
             omegas.iloc[0,i] = omega
             #print(item_dict.keys()," omega="+str(omega))
         return omegas
- 
+
+    #信頼区間を計算する（内部関数）
+    def __loading_to_ci(self,loading,data):
+        items = self.__select_items_by_loading(loading,data)
+        return self.confidence_interval(items,self.tol_95ci_)
+
+    def __loadings_to_ci(self,loadings,data):
+        nfactors = len(loadings.columns)
+        factnames= loadings.columns
+        indexname= format(int(self.tol_95ci_*100), "2d") + "%CI"
+        cis = pd.DataFrame(np.zeros(2*nfactors).reshape(2,nfactors),index=[indexname+"_min",indexname+"_max"],columns=factnames)
+        for i in range(nfactors):
+            items = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            # 95%信頼区間の計算
+            ci = self.confidence_interval(items,self.tol_95ci_)
+            #print("CI=",ci)
+            cis.iloc[0,i] = ci[0]
+            cis.iloc[1,i] = ci[1]
+            #cis.iloc[0,i] = self.confidence_interval(items,self.tol_95ci_)
+        return cis
+
+
     #I-T相関を計算する
     def __loading_to_itcorr(self,loading,data):
         items = self.__select_items_by_loading(loading,data)
@@ -430,6 +467,9 @@ class ExploratoryFactorAnalysis:
         #    rho = self.__loading_to_rho(self.loadings_.iloc[:,i],stddat)#stddat?
         #    self.rhos_.iloc[0,i] = rho
         self.rhos_ = self.__loadings_to_rho(self.loadings_,stddat)
+
+        #信頼区間
+        self.cis_  = self.__loadings_to_ci(self.loadings_,data) #信頼区間の計算は非標準化得点を使う
  
         #因子得点
         self.factors_ = pd.DataFrame(fa.transform(stddat),index=data.index,columns=factnames)  # 因子得点に変換
@@ -557,6 +597,7 @@ class ExploratoryFactorAnalysis:
         x += "Likert's scale : " + str(self.likert_) + "\n"
         x += "Cutoff Loading : " + str(self.tol_loading_) + "\n"
         x += "Cutoff Alpha   : " + str(self.tol_alpha_) + "\n"
+        x += "Cutoff CI      : " + str(self.tol_95ci_) + "\n"
         x += "Rotation       : " + self.rotation_ + "\n"
         x += "Num. of Factors: " + str(self.nfactors_) + "\n"
         x += "\n"
@@ -571,6 +612,8 @@ class ExploratoryFactorAnalysis:
             x += "McDonald's omega:\n" + str(self.omegas_) + "\n\n"
         if self.rhos_ is not None:
             x += "Split-half rho:\n" + str(self.rhos_) + "\n\n"
+        if self.cis_ is not None:
+            x += "Confidence Intervals:\n" + str(self.cis_) + "\n\n"
         if self.itcorr_ is not None:
             x += "I-T Correlations:\n" + str(self.itcorr_) + "\n\n"
         if self.rotation_matrix_ is not None:
