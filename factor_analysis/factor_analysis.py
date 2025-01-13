@@ -248,7 +248,7 @@ class ExploratoryFactorAnalysis:
             itcorr= self.item_total_corr(items)
             itcorr.columns = [factnames[i]]
             #itcorrs = itcorrs.append(itcorr) # pandas2で削除された
-            itcorrs = pd.concat([itcorrs,pd.DataFrame(itcorr)],ignore_index=True) # pandas2で削除された
+            itcorrs = pd.concat([itcorrs,itcorr],ignore_index=False) # pandas2で削除された
         return itcorrs
         #return pd.DataFrame(itcorrs)
      
@@ -318,7 +318,7 @@ class ExploratoryFactorAnalysis:
                 j += 1
             #print(x.iloc[0:j,0:n])
             #results = results.append(x.iloc[0:j,0:n]) # pandas2でappend()削除->concat()推奨に
-            results = pd.concat([results,pd.DataFrame(x.iloc[0:j,0:n])],ignore_index=True) 
+            results = pd.concat([results,pd.DataFrame(x.iloc[0:j,0:n])],ignore_index=False) 
             tmp_loadings = x.iloc[j:,:]
             ilabel += 1
         #print(results)
@@ -544,6 +544,7 @@ class ExploratoryFactorAnalysis:
         #潜在変数の定義
         for factor in factors:
             for item in items:
+                #print(item,factor)
                 loading = self.sorted_loadings_.loc[item,factor]
                 if abs(loading) > self.tol_loading_:
                     model += f"{factor} {right} {item}\n"
