@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import semopy as sem
 import japanize_matplotlib
  
 from factor_analyzer import FactorAnalyzer
@@ -10,15 +11,16 @@ class ExploratoryFactorAnalysis:
      
     def __init__(self,
                  likert=(1,7),tol_loading=0.5,tol_alpha=0.7,tol_scree=0.5,rotation='promax',
-                 ddof=False,dropping=False,method='minres',bounds=(0.005,1),impute='median',tol_95ci=0.95):
+                 ddof=False,dropping=False,cfa=False,method='minres',bounds=(0.005,1),impute='median',tol_95ci=0.95):
         self.likert_          = likert         # Likert's scale for reversing (default:(1,7))
         self.tol_loading_     = tol_loading    # Cutoff value for factor loadings (default:0.5)
         self.tol_alpha_       = tol_alpha      # Cutoff value for Cronbach's alpha (default:0.7)
         self.tol_scree_       = tol_scree      # Cutoff value in Scree's plot to detect max number of factors (default:0.5)
         self.tol_95ci_        = tol_95ci       # Cutoff percentage for confidence intervals (default:0.95)
         self.rotation_        = rotation       # [None|'varimax'|'promax'|'oblimin'|'oblimax'|'quartimin'|'quatimax'|'eqamax']
-        self.ddof_            = ddof           # (default:False) 不偏分散
+        self.ddof_            = ddof           # [True|False](default:False) 不偏分散
         self.dropping_        = dropping       # [True|False](defualt:False) switch for dropping items.
+        self.cfa_             = cfa            # [True|False](defualt:False) do CFI at the end of analyze()
         self.method_          = method         # ['minres'|'ml'|'principal']
         self.bounds_          = bounds         # L-BFGS-M bounds
         self.impute_          = impute         # ['median'|'drop'|'mean']
@@ -41,6 +43,11 @@ class ExploratoryFactorAnalysis:
         self.itcorr_          = None           # I-T correlations
         self.rhos_            = None           # Split-half rho
         self.cis_             = None           # 95% confidence interval
+        self.cfa_model_       = None           # CFA model text
+        self.cfa_sem_model_   = None           # SEM model by semopy
+        self.cfa_sem_result_  = None           # Results of SEM
+        self.cfa_sem_inspect_ = None           #
+        self.cfa_sem_gfi_     = None           # Good Fit Indexies
          
     #クーロンバックα係数
     @staticmethod
@@ -523,6 +530,14 @@ class ExploratoryFactorAnalysis:
         else:
             print("Computed factor's correlations instead because 'fa' does not have a member 'psi_'")
             self.factor_corr_ = self.__loadings_to_corr(self.loadings_,stddat)
+
+        #１次のCFAを計算する
+        if self.cfa_:
+           self.cfa_model_      = self.cfa_model()
+           self.cfa_sem_model_  = sem.Model(self.cfa_model_)
+           self.cfa_sem_result_ = self.cfa_sem_model_.fit(data)
+           self.cfa_sem_inspect_= self.cfa_sem_model_.inspect(std_est=True)
+           self.cfa_sem_gfi_    = sem.calc_stats(self.cfa_sem_model_)
          
         return self.factors_
 
@@ -615,6 +630,8 @@ class ExploratoryFactorAnalysis:
             x += "Split-half rho:\n" + str(self.rhos_) + "\n\n"
         if self.cis_ is not None:
             x += "Confidence Intervals:\n" + str(self.cis_) + "\n\n"
+        if self.scree_eigvals_ is not None:
+            x += "Scree eignvalues:\n" + str(self.scree_eigvals_) + "\n\n"
         if self.itcorr_ is not None:
             x += "I-T Correlations:\n" + str(self.itcorr_) + "\n\n"
         if self.rotation_matrix_ is not None:
@@ -627,5 +644,17 @@ class ExploratoryFactorAnalysis:
             x += "Communalities:\n" + str(self.communalities_) + "\n\n"
         if self.uniquenesses_ is not None:
             x += "Uniquenesses:\n" + str(self.uniquenesses_) + "\n\n"
+        if self.cfa_model_ is not None:
+            x += "CFA Model:\n" + str(self.cfa_model_) + "\n\n"
+        if self.cfa_sem_result_ is not None:
+            x += "CFA Information:\n" + str(self.cfa_sem_result_) + "\n\n"
+        if self.cfa_sem_inspect_ is not None:
+            pd.set_option('display.max_columns',len(self.cfa_sem_inspect_.columns))
+            pd.set_option('display.max_rows',len(self.cfa_sem_inspect_.index))
+            x += "CFA Result:\n" + str(self.cfa_sem_inspect_) + "\n\n"
+        if self.cfa_sem_gfi_ is not None:
+            pd.set_option('display.max_columns',len(self.cfa_sem_gfi_.index))
+            pd.set_option('display.max_rows',len(self.cfa_sem_gfi_.columns))
+            x += "CFA Good Fit Index:\n" + str(self.cfa_sem_gfi_.T) + "\n\n"
          
         return x
