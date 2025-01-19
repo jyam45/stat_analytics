@@ -441,15 +441,17 @@ class ExploratoryFactorAnalysis:
         fa.fit(stddat)
 
         #重複項目の削除 & 再分析
+        dropped = data
         if self.dropping_ :
-            drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames))
+            drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=stddat.columns,columns=factnames))
             if len(drop_items) > 0 :
                 print("Dropped Items : ",drop_items)
                 stddat = stddat.drop(drop_items,axis=1)
+                dropped= data.drop(drop_items,axis=1)
                 fa.fit(stddat)
             
         #因子負荷量（質問×因子）
-        self.loadings_ = pd.DataFrame(fa.loadings_,index=data.columns,columns=factnames)
+        self.loadings_ = pd.DataFrame(fa.loadings_,index=stddat.columns,columns=factnames)
         self.sorted_loadings_ = self.sort_loadings(self.loadings_,tol=self.tol_loading_)
  
         #内的一貫性
@@ -476,21 +478,22 @@ class ExploratoryFactorAnalysis:
         self.rhos_ = self.__loadings_to_rho(self.loadings_,stddat)
 
         #信頼区間
-        self.cis_  = self.__loadings_to_ci(self.loadings_,data) #信頼区間の計算は非標準化得点を使う
+        self.cis_  = self.__loadings_to_ci(self.loadings_,dropped) #信頼区間の計算は非標準化得点を使う
+        #self.cis_  = self.__loadings_to_ci(self.loadings_,stddat)
  
         #因子得点
-        self.factors_ = pd.DataFrame(fa.transform(stddat),index=data.index,columns=factnames)  # 因子得点に変換
+        self.factors_ = pd.DataFrame(fa.transform(stddat),index=stddat.index,columns=factnames)  # 因子得点に変換
 
         #共通性（共通分散の値のこと、複数の観測変数に影響する度合い）
         x = fa.get_communalities()
         if x is not None :
-            self.communalities_ = pd.DataFrame(x,index=data.columns,columns=['comm.'])
+            self.communalities_ = pd.DataFrame(x,index=stddat.columns,columns=['comm.'])
             #print(self.communalities_)
          
         #オリジナル相関の固有値、因子相関の固有値
         x = fa.get_eigenvalues()
         if x is not None :
-            self.eigenvalues_ = pd.DataFrame(x,index = ['original','factor'],columns = data.columns)
+            self.eigenvalues_ = pd.DataFrame(x,index = ['original','factor'],columns = stddat.columns)
             #print(self.eigenvalues_)
          
         #因子寄与、因子寄与率、累積因子寄与率
@@ -502,11 +505,11 @@ class ExploratoryFactorAnalysis:
         #独自性（独自分散の値のこと、単数の観測変数に影響する度合い）
         x = fa.get_uniquenesses()
         if x is not None :
-            self.uniquenesses_ = pd.DataFrame(x,index = data.columns,columns = ['uniq.'])
+            self.uniquenesses_ = pd.DataFrame(x,index = stddat.columns,columns = ['uniq.'])
             #print(self.uniquenesses_)
  
         #相関行列（項目間の相関）
-        self.corr_ = pd.DataFrame(fa.corr_,index=data.columns,columns=data.columns)
+        self.corr_ = pd.DataFrame(fa.corr_,index=stddat.columns,columns=stddat.columns)
         #print(self.corr_)
          
         #回転行列（斜交回転の場合だけ計算され、軸の回転を表す）
@@ -518,7 +521,7 @@ class ExploratoryFactorAnalysis:
          
         #構造行列（promaxの場合だけ計算される）
         if hasattr(fa,'structure_'):
-            self.structure_ = pd.DataFrame(fa.structure_,index=data.columns,columns=factnames)
+            self.structure_ = pd.DataFrame(fa.structure_,index=stddat.columns,columns=factnames)
             #print(self.structure_)
         else:
             print("'fa' does not have a menber 'structure_'")
@@ -535,7 +538,7 @@ class ExploratoryFactorAnalysis:
         if self.cfa_:
            self.cfa_model_      = self.cfa_model()
            self.cfa_sem_model_  = sem.Model(self.cfa_model_)
-           self.cfa_sem_result_ = self.cfa_sem_model_.fit(data)
+           self.cfa_sem_result_ = self.cfa_sem_model_.fit(stddat)
            self.cfa_sem_inspect_= self.cfa_sem_model_.inspect(std_est=True)
            self.cfa_sem_gfi_    = sem.calc_stats(self.cfa_sem_model_)
          
