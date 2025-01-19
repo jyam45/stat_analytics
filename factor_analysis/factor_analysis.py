@@ -11,7 +11,8 @@ class ExploratoryFactorAnalysis:
      
     def __init__(self,
                  likert=(1,7),tol_loading=0.5,tol_alpha=0.7,tol_scree=0.5,rotation='promax',
-                 ddof=False,dropping=False,cfa=False,method='minres',bounds=(0.005,1),impute='median',tol_95ci=0.95):
+                 ddof=False,dropping=False,cfa=False,cfa2=False,bifactor=False,cfa2l=False,
+                 method='minres',bounds=(0.005,1),impute='median',tol_95ci=0.95):
         self.likert_          = likert         # Likert's scale for reversing (default:(1,7))
         self.tol_loading_     = tol_loading    # Cutoff value for factor loadings (default:0.5)
         self.tol_alpha_       = tol_alpha      # Cutoff value for Cronbach's alpha (default:0.7)
@@ -20,7 +21,10 @@ class ExploratoryFactorAnalysis:
         self.rotation_        = rotation       # [None|'varimax'|'promax'|'oblimin'|'oblimax'|'quartimin'|'quatimax'|'eqamax']
         self.ddof_            = ddof           # [True|False](default:False) 不偏分散
         self.dropping_        = dropping       # [True|False](defualt:False) switch for dropping items.
-        self.cfa_             = cfa            # [True|False](defualt:False) do CFI at the end of analyze()
+        self.cfa_             = cfa            # [True|False](defualt:False) do CFA at the end of analyze()
+        self.cfa2_            = cfa2           # [True|False](defualt:False) do 2nd-order CFA at the end of analyze()
+        self.bfct_            = bifactor       # [True|False](defualt:False) do Bifactor CFA at the end of analyze()
+        self.lyr2_            = cfa2l          # [True|False](defualt:False) do 2nd layered CFA at the end of analyze()
         self.method_          = method         # ['minres'|'ml'|'principal']
         self.bounds_          = bounds         # L-BFGS-M bounds
         self.impute_          = impute         # ['median'|'drop'|'mean']
@@ -49,6 +53,21 @@ class ExploratoryFactorAnalysis:
         self.cfa_sem_result_  = None           # Results of SEM
         self.cfa_sem_inspect_ = None           #
         self.cfa_sem_gfi_     = None           # Good Fit Indexies
+        self.cfa2_model_      = None           # CFA model text
+        self.cfa2_sem_model_  = None           # SEM model by semopy
+        self.cfa2_sem_result_ = None           # Results of SEM
+        self.cfa2_sem_inspect_= None           #
+        self.cfa2_sem_gfi_    = None           # Good Fit Indexies
+        self.bfct_model_      = None           # CFA model text
+        self.bfct_sem_model_  = None           # SEM model by semopy
+        self.bfct_sem_result_ = None           # Results of SEM
+        self.bfct_sem_inspect_= None           #
+        self.bfct_sem_gfi_    = None           # Good Fit Indexies
+        self.lyr2_model_      = None           # CFA model text
+        self.lyr2_sem_model_  = None           # SEM model by semopy
+        self.lyr2_sem_result_ = None           # Results of SEM
+        self.lyr2_sem_inspect_= None           #
+        self.lyr2_sem_gfi_    = None           # Good Fit Indexies
          
     #クーロンバックα係数
     @staticmethod
@@ -587,6 +606,30 @@ class ExploratoryFactorAnalysis:
            self.cfa_sem_result_ = self.cfa_sem_model_.fit(stddat)
            self.cfa_sem_inspect_= self.cfa_sem_model_.inspect(std_est=True)
            self.cfa_sem_gfi_    = sem.calc_stats(self.cfa_sem_model_)
+
+        #２次のCFAを計算する
+        if self.cfa2_ and nfactors > 1 :
+           self.cfa2_model_      = self.cfa_model(model_type="order2")
+           self.cfa2_sem_model_  = sem.Model(self.cfa2_model_)
+           self.cfa2_sem_result_ = self.cfa2_sem_model_.fit(stddat)
+           self.cfa2_sem_inspect_= self.cfa2_sem_model_.inspect(std_est=True)
+           self.cfa2_sem_gfi_    = sem.calc_stats(self.cfa2_sem_model_)
+
+        #Bifactor CFAを計算する
+        if self.bfct_ and nfactors > 1 :
+           self.bfct_model_      = self.cfa_model(model_type="bifactor")
+           self.bfct_sem_model_  = sem.Model(self.bfct_model_)
+           self.bfct_sem_result_ = self.bfct_sem_model_.fit(stddat)
+           self.bfct_sem_inspect_= self.bfct_sem_model_.inspect(std_est=True)
+           self.bfct_sem_gfi_    = sem.calc_stats(self.bfct_sem_model_)
+
+        #２層CFAを計算する
+        if self.lyr2_ and nfactors > 1 :
+           self.lyr2_model_      = self.cfa_model(model_type="layer2")
+           self.lyr2_sem_model_  = sem.Model(self.lyr2_model_)
+           self.lyr2_sem_result_ = self.lyr2_sem_model_.fit(stddat)
+           self.lyr2_sem_inspect_= self.lyr2_sem_model_.inspect(std_est=True)
+           self.lyr2_sem_gfi_    = sem.calc_stats(self.lyr2_sem_model_)
          
         return self.factors_
 
@@ -644,7 +687,7 @@ class ExploratoryFactorAnalysis:
                     model += f"{ifactor} {both} 0*{jfactor}\n"
             #model += f"DEFINE(latent) {gfactor}\n"
             #model += f"{gfactor} {both} 1*{gfactor}\n"
-        elif model_type == "multilayer":
+        elif model_type == "layer2":
             # 階層因子モデル
             nfactors = len(factors)
             for j in range(0,nfactors):
@@ -654,7 +697,7 @@ class ExploratoryFactorAnalysis:
                 model += f"{gfactor} {right} {item}\n"
             #model += f"DEFINE(latent) {gfactor}\n"
         else:
-            print("cfa_model: invalide option model_type={model_type}. ['order1','order2','bifactor','multilayer']")
+            print("cfa_model: invalide option model_type={model_type}. ['order1','order2','bifactor','layer2']")
         return model
  
     def __str__(self):
@@ -707,5 +750,41 @@ class ExploratoryFactorAnalysis:
             pd.set_option('display.max_columns',len(self.cfa_sem_gfi_.index))
             pd.set_option('display.max_rows',len(self.cfa_sem_gfi_.columns))
             x += "CFA Good Fit Index:\n" + str(self.cfa_sem_gfi_.T) + "\n\n"
+        if self.cfa2_model_ is not None:
+            x += "2nd-order CFA Model:\n" + str(self.cfa2_model_) + "\n\n"
+        if self.cfa2_sem_result_ is not None:
+            x += "2nd-order CFA Information:\n" + str(self.cfa2_sem_result_) + "\n\n"
+        if self.cfa2_sem_inspect_ is not None:
+            pd.set_option('display.max_columns',len(self.cfa2_sem_inspect_.columns))
+            pd.set_option('display.max_rows',len(self.cfa2_sem_inspect_.index))
+            x += "2nd-order CFA Result:\n" + str(self.cfa2_sem_inspect_) + "\n\n"
+        if self.cfa2_sem_gfi_ is not None:
+            pd.set_option('display.max_columns',len(self.cfa2_sem_gfi_.index))
+            pd.set_option('display.max_rows',len(self.cfa2_sem_gfi_.columns))
+            x += "2nd-order CFA Good Fit Index:\n" + str(self.cfa2_sem_gfi_.T) + "\n\n"
+        if self.bfct_model_ is not None:
+            x += "Bifactor CFA Model:\n" + str(self.bfct_model_) + "\n\n"
+        if self.bfct_sem_result_ is not None:
+            x += "Bifactor CFA Information:\n" + str(self.bfct_sem_result_) + "\n\n"
+        if self.bfct_sem_inspect_ is not None:
+            pd.set_option('display.max_columns',len(self.bfct_sem_inspect_.columns))
+            pd.set_option('display.max_rows',len(self.bfct_sem_inspect_.index))
+            x += "Bifactor CFA Result:\n" + str(self.bfct_sem_inspect_) + "\n\n"
+        if self.bfct_sem_gfi_ is not None:
+            pd.set_option('display.max_columns',len(self.bfct_sem_gfi_.index))
+            pd.set_option('display.max_rows',len(self.bfct_sem_gfi_.columns))
+            x += "Bifactor CFA Good Fit Index:\n" + str(self.bfct_sem_gfi_.T) + "\n\n"
+        if self.lyr2_model_ is not None:
+            x += "2nd-layered CFA Model:\n" + str(self.lyr2_model_) + "\n\n"
+        if self.lyr2_sem_result_ is not None:
+            x += "2nd-layered CFA Information:\n" + str(self.lyr2_sem_result_) + "\n\n"
+        if self.lyr2_sem_inspect_ is not None:
+            pd.set_option('display.max_columns',len(self.lyr2_sem_inspect_.columns))
+            pd.set_option('display.max_rows',len(self.lyr2_sem_inspect_.index))
+            x += "2nd-layered CFA Result:\n" + str(self.lyr2_sem_inspect_) + "\n\n"
+        if self.lyr2_sem_gfi_ is not None:
+            pd.set_option('display.max_columns',len(self.lyr2_sem_gfi_.index))
+            pd.set_option('display.max_rows',len(self.lyr2_sem_gfi_.columns))
+            x += "2nd-layered CFA Good Fit Index:\n" + str(self.lyr2_sem_gfi_.T) + "\n\n"
          
         return x
