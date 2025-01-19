@@ -41,6 +41,7 @@ class ExploratoryFactorAnalysis:
         self.uniquenesses_    = None
         self.sorted_loadings_ = None
         self.itcorr_          = None           # I-T correlations
+        self.citcorr_         = None           # Cumulative I-T correlations
         self.rhos_            = None           # Split-half rho
         self.cis_             = None           # 95% confidence interval
         self.cfa_model_       = None           # CFA model text
@@ -115,6 +116,25 @@ class ExploratoryFactorAnalysis:
         z = pd.DataFrame(c.loc[:,"I-T corr."].iloc[:m,])
         z = z.sort_values("I-T corr.",ascending=False)
         return z
+
+    # 累積I-T相関
+    # https://bellcurve.jp/statistics/glossary/7396.html
+    @staticmethod
+    def cumu_item_total_corr(data):
+        m = len(data.columns)
+        x = data.copy() # deep copy
+        x = x.join(pd.DataFrame(data.sum(axis=1),columns=["I-T corr."])) # 行方向の和を追加する
+        c = x.corr()
+        z = pd.DataFrame(c.loc[:,"I-T corr."].iloc[:m,])
+        z = z.sort_values("I-T corr.",ascending=False)
+        y = pd.DataFrame(x.loc[:,z.index[0]])
+        for k in range(len(z.index)-1):
+            y = y.join(pd.DataFrame(y.iloc[:,k]+x.loc[:,z.index[k+1]],columns=[z.index[k+1]]))
+        y = y.join(pd.DataFrame(x.loc[:,"I-T corr."]))
+        r = y.corr()
+        w = pd.DataFrame(r.loc[:,"I-T corr."].iloc[:m,])
+        w.columns=["Cumu I-T corr."]
+        return z, w
      
     # 折半法(split-half method)
     # https://bellcurve.jp/statistics/glossary/7447.html
@@ -257,6 +277,31 @@ class ExploratoryFactorAnalysis:
             #itcorrs = itcorrs.append(itcorr) # pandas2で削除された
             itcorrs = pd.concat([itcorrs,itcorr],ignore_index=False) # pandas2で削除された
         return itcorrs
+        #return pd.DataFrame(itcorrs)
+
+    #I-T相関と累積I-T相関を計算する
+    #  itcorr : I-T相関
+    #  citcorr: 累積I-T相関
+    def __loading_to_citcorr(self,loading,data):
+        items = self.__select_items_by_loading(loading,data)
+        itcorr,citcorr= self.cumu_item_total_corr(items)
+        return itcorr,citcorr
+
+    def __loadings_to_citcorr(self,loadings,data):
+        nfactors = len(loadings.columns)
+        factnames= loadings.columns
+        itcorrs  = pd.DataFrame()
+        citcorrs = pd.DataFrame()
+        #itcorrs  = []
+        for i in range(nfactors):
+            items = self.__select_items_by_loading(loadings.iloc[:,i],data)
+            itcorr, citcorr= self.cumu_item_total_corr(items)
+            itcorr.columns = [factnames[i]]
+            citcorr.columns= [factnames[i]]
+            #itcorrs = itcorrs.append(itcorr) # pandas2で削除された
+            itcorrs = pd.concat([itcorrs,itcorr],ignore_index=False) # pandas2で削除された
+            citcorrs= pd.concat([citcorrs,citcorr],ignore_index=False) # pandas2で削除された
+        return itcorrs,citcorrs
         #return pd.DataFrame(itcorrs)
      
     #折半法を計算する
@@ -441,7 +486,7 @@ class ExploratoryFactorAnalysis:
         fa.fit(stddat)
 
         #重複項目の削除 & 再分析
-        dropped = data
+        dropped = data # 項目削除された非標準化データを使う場合に使用すること。これ以降dataは使用してはならない。
         if self.dropping_ :
             drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=stddat.columns,columns=factnames))
             if len(drop_items) > 0 :
@@ -462,13 +507,14 @@ class ExploratoryFactorAnalysis:
         self.alphas_ = self.__loadings_to_alpha(self.loadings_,stddat)
         self.omegas_ = self.__loadings_to_omega(self.loadings_,stddat)
          
-        #I-T相関
+        #I-T相関と累積I-T相関
         #self.itcorr_ = pd.DataFrame()
         #for i in range(nfactors):
         #    itcorr = self.__loading_to_itcorr(self.loadings_.iloc[:,i],stddat)#stddat?
         #    itcorr.columns = [factnames[i]]
         #    self.itcorr_ = self.itcorr_.append(itcorr)
-        self.itcorr_ = self.__loadings_to_itcorr(self.loadings_,stddat)
+        #self.itcorr_ = self.__loadings_to_itcorr(self.loadings_,stddat)
+        self.itcorr_,self.citcorr_ = self.__loadings_to_citcorr(self.loadings_,stddat)
          
         #split-half
         #self.rhos_ = pd.DataFrame(np.zeros(nfactors).reshape(1,nfactors),index=["rho"],columns=factnames)
@@ -479,7 +525,7 @@ class ExploratoryFactorAnalysis:
 
         #信頼区間
         self.cis_  = self.__loadings_to_ci(self.loadings_,dropped) #信頼区間の計算は非標準化得点を使う
-        #self.cis_  = self.__loadings_to_ci(self.loadings_,stddat)
+        #self.cis_  = self.__loadings_to_ci(self.loadings_,stddat) #標準化得点を使う場合はこちら
  
         #因子得点
         self.factors_ = pd.DataFrame(fa.transform(stddat),index=stddat.index,columns=factnames)  # 因子得点に変換
@@ -637,6 +683,8 @@ class ExploratoryFactorAnalysis:
             x += "Scree eignvalues:\n" + str(self.scree_eigvals_) + "\n\n"
         if self.itcorr_ is not None:
             x += "I-T Correlations:\n" + str(self.itcorr_) + "\n\n"
+        if self.citcorr_ is not None:
+            x += "Cumulative I-T Correlations:\n" + str(self.citcorr_) + "\n\n"
         if self.rotation_matrix_ is not None:
             x += "Rotation Matrix:\n" + str(self.rotation_matrix_) + "\n\n"
         if self.factor_corr_ is not None:
