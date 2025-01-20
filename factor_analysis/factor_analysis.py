@@ -646,8 +646,8 @@ class ExploratoryFactorAnalysis:
            both = "<>"
         else:
            print(f"cfa_model: irregal option formating={formating}. ['lavaan','sem']")
-        factors = self.loadings_.columns
-        items   = self.loadings_.index
+        factors = self.sorted_loadings_.columns
+        items   = self.sorted_loadings_.index
         #潜在変数の定義
         for factor in factors:
             for item in items:
@@ -723,6 +723,7 @@ class ExploratoryFactorAnalysis:
         if self.cis_ is not None:
             x += "Confidence Intervals:\n" + str(self.cis_) + "\n\n"
         if self.scree_eigvals_ is not None:
+            pd.set_option('display.max_rows',len(self.scree_eigvals_.index))
             x += "Scree eignvalues:\n" + str(self.scree_eigvals_) + "\n\n"
         if self.itcorr_ is not None:
             x += "I-T Correlations:\n" + str(self.itcorr_) + "\n\n"
