@@ -653,7 +653,7 @@ class ExploratoryFactorAnalysis:
         return self.factors_
 
     # 簡易実行関数
-    def find(self,data):
+    def fit(self,data):
         nf,dl = self.explore(data)
         return self.analyze(data,nf,drop_list=dl)
 
