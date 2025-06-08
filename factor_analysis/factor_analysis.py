@@ -663,6 +663,11 @@ class ExploratoryFactorAnalysis:
          
         return self.factors_
 
+    # 簡易実行関数
+    def find(self,data):
+        nf,dl = self.explore(data)
+        return self.analyze(data,nf,drop_list=dl)
+
     # CFAのための構造方程式を計算する
     def cfa_model(self,formating="lavaan",model_type="order1",gfactor="GF"):
         model = ""
