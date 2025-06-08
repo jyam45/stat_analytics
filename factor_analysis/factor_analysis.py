@@ -209,23 +209,12 @@ class ExploratoryFactorAnalysis:
         return load_list
 
     #１因子分析による因子負荷量を計算する（内部関数）
-    def __calc_single_factor_loads(self,items): # itemsは部分データ
-        # 格納用辞書：pandas.DataFrameに変換するときに、列データとするため辞書に
-        load_list = []
+    def __calc_single_factor_loadings(self,items): # itemsは部分データ
         #１因子分析
         fa = FactorAnalyzer(1,rotation=self.rotation_,method=self.method_,
                             bounds=self.bounds_,impute=self.impute_)
-        #print(data)
-        #print(items)
         fa.fit(items) # 因子分析（特異値分解SVD）
-        # 因子負荷量の絶対値が閾値より大きい質問を取り出す
-        for i in range(len(fa.loadings_)):
-            ld = fa.loadings_[i]
-            if ld >= self.tol_loading_ :
-                load_list.append(ld)
-            elif ld <= -self.tol_loading_ :
-                load_list.append(-ld)
-        return load_list
+        return fa.loadings_
 
         
     #因子負荷量からクロンバックαを計算する（内部関数）
@@ -256,7 +245,7 @@ class ExploratoryFactorAnalysis:
     def __loading_to_omega(self,loading,data):
         items = self.__select_items_by_loading(loading,data)
         #loads = self.__select_loads_by_loading(loading,data)
-        loads = self.__calc_single_factor_loads(items)
+        loads = self.__calc_single_factor_loadings(items)
         #マクドナルドωの計算
         omega = 0e0
         if len(items.columns) > 1 : # １質問の場合は、共通因子はなかったと見なす
@@ -271,7 +260,7 @@ class ExploratoryFactorAnalysis:
         for i in range(nfactors):
             items = self.__select_items_by_loading(loadings.iloc[:,i],data)
             #loads = self.__select_loads_by_loading(loadings.iloc[:,i],data)
-            loads = self.__calc_single_factor_loads(items)
+            loads = self.__calc_single_factor_loadings(items)
             #マクドナルドωの計算
             omega = 0e0
             if len(items.columns) > 1 : # １質問の場合は、共通因子はなかったと見なす
