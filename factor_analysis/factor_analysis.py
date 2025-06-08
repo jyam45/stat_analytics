@@ -30,6 +30,7 @@ class ExploratoryFactorAnalysis:
         self.impute_          = impute         # ['median'|'drop'|'mean']
         self.nfactors_        = 0              # number of factors
         self.max_factors_     = 0              # maximum number of factors
+        self.drop_list_       = None           # Drop Item's column names as pd.Index type
         self.scree_eigvals_   = None           # Eigen values for scree plot
         self.factors_         = None           # factor values
         self.alphas_          = None           # Cronbach's alpha
@@ -412,6 +413,7 @@ class ExploratoryFactorAnalysis:
      
         #因子数探索ループ
         nfactors = max_factors
+        drop_list= if self.droping_ : pd.Index([],dtype="object") else : None
         while nfactors > 0 :
          
             print('try nfactors = '+str(nfactors))
@@ -442,6 +444,7 @@ class ExploratoryFactorAnalysis:
                         print("Dropped Items : ",drop_items)
                         stddat = stddat.drop(drop_items,axis=1)
                         nfactors = max_factors+1 # 再探索する
+                        drop_list = drop_list.union(drop_items)
                     else:
                         print('found optimum nfactors = '+str(nfactors))
                         break
@@ -462,8 +465,9 @@ class ExploratoryFactorAnalysis:
         self.max_factors_    = max_factors
         self.nfactors_       = nfactors
         self.scree_eigvals_  = ev
+        self.drop_list_      = drop_list
          
-        return nfactors # 成功 nfactors>0, 失敗 nfactors=0
+        return nfactors, drop_list # 成功 nfactors>0, 失敗 nfactors=0
      
     def scree_plot(self):
         # 基準線(固有値1)
@@ -482,7 +486,7 @@ class ExploratoryFactorAnalysis:
  
     #因子分析の解説
     #
-    def analyze(self,data,nfactors):
+    def analyze(self,data,nfactors,drop_list=None):
  
         #エラー処理
         if nfactors < 1 :
@@ -496,6 +500,9 @@ class ExploratoryFactorAnalysis:
             factnames.append(factname)
             i+=1
              
+        #ドロップ項目削除（dataは参照なので変更しない）
+        dropped = if drop_list is not None : data.drop(drop_list,axis=1) else : data
+
         #標準化
         stddat = self.standardize(data,ddof=self.ddof_)
  
@@ -505,14 +512,15 @@ class ExploratoryFactorAnalysis:
         fa.fit(stddat)
 
         #重複項目の削除 & 再分析
-        dropped = data # 項目削除された非標準化データを使う場合に使用すること。これ以降dataは使用してはならない。
+        #dropped = data # 項目削除された非標準化データを使う場合に使用すること。これ以降dataは使用してはならない。
         if self.dropping_ :
             drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=stddat.columns,columns=factnames))
-            if len(drop_items) > 0 :
+            while len(drop_items) > 0 :
                 print("Dropped Items : ",drop_items)
                 stddat = stddat.drop(drop_items,axis=1)
-                dropped= data.drop(drop_items,axis=1)
+                dropped= dropped.drop(drop_items,axis=1)
                 fa.fit(stddat)
+                drop_items = self.__find_drop_items(pd.DataFrame(fa.loadings_,index=stddat.columns,columns=factnames))
             
         #因子負荷量（質問×因子）
         self.loadings_ = pd.DataFrame(fa.loadings_,index=stddat.columns,columns=factnames)
