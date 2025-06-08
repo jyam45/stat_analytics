@@ -413,7 +413,7 @@ class ExploratoryFactorAnalysis:
      
         #因子数探索ループ
         nfactors = max_factors
-        drop_list= if self.droping_ : pd.Index([],dtype="object") else : None
+        drop_list= pd.Index([],dtype="object") if self.dropping_  else None
         while nfactors > 0 :
          
             print('try nfactors = '+str(nfactors))
@@ -501,7 +501,7 @@ class ExploratoryFactorAnalysis:
             i+=1
              
         #ドロップ項目削除（dataは参照なので変更しない）
-        dropped = if drop_list is not None : data.drop(drop_list,axis=1) else : data
+        dropped = data.drop(drop_list,axis=1) if drop_list is not None  else data
 
         #標準化
         stddat = self.standardize(data,ddof=self.ddof_)
